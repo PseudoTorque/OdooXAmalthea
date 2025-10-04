@@ -24,7 +24,7 @@ class Company(Base):
     #fields
     name = Column(String(255), nullable=False, index=True)
     country_id = Column(Integer, ForeignKey("countries.id"), nullable=False, index=True)
-    currency_code = Column(String(3), ForeignKey("currencies.id"), nullable=False, index=True)
+    currency_code = Column(String(3), nullable=False, index=True)
 
     #timestamps
     created_at = Column(DateTime, default=datetime.utcnow, index=True, nullable=False)

@@ -124,6 +124,7 @@ class UsersService:
             }
 
         except Exception as e:
+            print(e)
             self.session.rollback()
             return {
                 "success": False,
@@ -237,7 +238,7 @@ class UsersService:
             User dictionary or None if not found
         """
         try:
-            user = self.session.query(Users).filter_by(email=email, is_active=True).first()
+            user = self.session.query(Users).filter_by(email=email).first()
             if user:
                 return {
                     "id": str(user.id),
@@ -264,7 +265,8 @@ class UsersService:
             User dictionary if authentication successful, None otherwise
         """
         try:
-            user = self.session.query(Users).filter_by(email=email, is_active=True).first()
+            user = self.session.query(Users).filter_by(email=email).first()
+            print(user, self._verify_password(password, user.password_hash))
             if user and self._verify_password(password, user.password_hash):
                 return {
                     "id": str(user.id),
@@ -274,7 +276,9 @@ class UsersService:
                     "company_id": user.company_id,
                     "manager_id": str(user.manager_id) if user.manager_id else None
                 }
-            return None
+            return {
+                "error": "Invalid credentials, Please try again."
+            }
         finally:
             self.session.close()
 

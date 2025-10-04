@@ -6,3 +6,7 @@ class AdminSignupRequest(BaseModel):
     password: str
     company_name: str
     country_id: int
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str

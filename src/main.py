@@ -1,11 +1,12 @@
 from fastapi import FastAPI, Depends
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from database import get_db, create_tables, get_engine
 from countries_currencies import get_countries_service, get_exchange_rate_service
 from users import get_users_service
-from models import AdminSignupRequest
+from models import AdminSignupRequest, LoginRequest
 
 # Initialize database tables
 create_tables()
@@ -22,6 +23,21 @@ users_service = get_users_service()
 
 
 app = FastAPI()
+
+# CORS configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",      # Next.js development server
+        "http://127.0.0.1:3000",     # Alternative localhost
+        "https://localhost:3000",     # HTTPS development
+        "http://localhost:5173",      # Vite development server (alternative)
+        "http://127.0.0.1:5173",     # Alternative localhost for Vite
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all HTTP methods
+    allow_headers=["*"],  # Allow all headers
+)
 
 
 @app.get("/health")
@@ -67,6 +83,12 @@ async def get_exchange_rate(base_currency: str, target_currency: str, amount: fl
 async def admin_signup(request: AdminSignupRequest):
     """Admin signup endpoint."""
     return users_service.handle_admin_signup(request)
+
+@app.post("/login")
+async def login(request: LoginRequest):
+    """Login endpoint."""
+    return users_service.authenticate_user(request.email, request.password)
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
