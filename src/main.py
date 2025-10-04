@@ -4,6 +4,8 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from database import get_db, create_tables, get_engine
 from countries_currencies import get_countries_service, get_exchange_rate_service
+from users import get_users_service
+from models import AdminSignupRequest
 
 # Initialize database tables
 create_tables()
@@ -14,6 +16,10 @@ countries_service.refresh_cache()
 
 # Initialize exchange rates cache
 exchange_rates_service = get_exchange_rate_service()
+
+# Initialize users service
+users_service = get_users_service()
+
 
 app = FastAPI()
 
@@ -56,6 +62,11 @@ async def get_exchange_rates(base_currency: str):
 async def get_exchange_rate(base_currency: str, target_currency: str, amount: float):
     """Get the exchange rate for a specific amount."""
     return exchange_rates_service.convert_currency(amount, base_currency, target_currency)
+
+@app.post("/signup")
+async def admin_signup(request: AdminSignupRequest):
+    """Admin signup endpoint."""
+    return users_service.handle_admin_signup(request)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
