@@ -9,6 +9,7 @@ from users import get_users_service
 from models import AdminSignupRequest, LoginRequest, ApprovalPolicyUpsertRequest
 from expenses import get_expenses_service
 from approvals.main import get_approvals_service
+from mail_service.main import send_credentials_email as svc_send_credentials_email, send_notification_email as svc_send_notification_email
 from datetime import datetime
 # Initialize database tables
 create_tables()
@@ -248,6 +249,29 @@ async def get_pending_approvals(approver_id: int):
 @app.post("/approvals/{expense_id}/action")
 async def approval_action(expense_id: int, data: dict):
     return approvals_service.take_action(expense_id, int(data.get("approver_id")), data.get("action"), data.get("comments"))
+
+
+# ---------------- Mail Endpoints ----------------
+@app.post("/mail/send-credentials")
+async def send_credentials(payload: dict):
+    """Send credentials email to a user."""
+    recipient = payload.get("recipient_email")
+    full_name = payload.get("full_name")
+    password = payload.get("password")
+    if not recipient or not full_name or not password:
+        return {"success": False, "error": "recipient_email, full_name and password are required"}
+    return svc_send_credentials_email(recipient, full_name, password)
+
+
+@app.post("/mail/send-notification")
+async def send_notification(payload: dict):
+    """Send a general notification email."""
+    recipient = payload.get("recipient_email")
+    subject = payload.get("subject")
+    message_body = payload.get("message_body")
+    if not recipient or not subject:
+        return {"success": False, "error": "recipient_email and subject are required"}
+    return svc_send_notification_email(recipient, subject, message_body or "")
 
 
 # LLM endpoints

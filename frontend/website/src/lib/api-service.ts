@@ -278,6 +278,21 @@ class ApiService {
     return this.request<UpdateUserResponse>(`/users/${userId}`, { method: 'POST', body: JSON.stringify(payload) });
   }
 
+  // -------- Mail --------
+  async sendCredentialsEmail(recipientEmail: string, fullName: string, password: string): Promise<{ success: boolean; message?: string; error?: string }> {
+    return this.request<{ success: boolean; message?: string; error?: string }>(`/mail/send-credentials`, {
+      method: 'POST',
+      body: JSON.stringify({ recipient_email: recipientEmail, full_name: fullName, password }),
+    });
+  }
+
+  async sendNotificationEmail(recipientEmail: string, subject: string, messageBody: string): Promise<{ success: boolean; message?: string; error?: string }> {
+    return this.request<{ success: boolean; message?: string; error?: string }>(`/mail/send-notification`, {
+      method: 'POST',
+      body: JSON.stringify({ recipient_email: recipientEmail, subject, message_body: messageBody }),
+    });
+  }
+
   // -------- Approvals --------
   async getApprovalPolicies(companyId: number): Promise<GetPoliciesResponse> {
     return this.request<GetPoliciesResponse>(`/approvals/policies/${companyId}`, {

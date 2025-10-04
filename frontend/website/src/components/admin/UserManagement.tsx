@@ -28,17 +28,21 @@ interface CreateUserData {
 }
 
 export default function UserManagement() {
+  const DEFAULT_PASSWORD = 'testpassword';
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [emailTarget, setEmailTarget] = useState<User | null>(null);
+  const [sendingEmail, setSendingEmail] = useState(false);
 
 
   const { user } = useAuth();
   const [createFormData, setCreateFormData] = useState<CreateUserData>({
     email: '',
     full_name: '',
-    password: '',
+    password: DEFAULT_PASSWORD,
     role: 'Employee',
     company_id: user?.company_id || 0,
     manager_id: null,
@@ -79,7 +83,7 @@ export default function UserManagement() {
         setCreateFormData({
           email: '',
           full_name: '',
-          password: '',
+          password: DEFAULT_PASSWORD,
           role: 'Employee',
           company_id: user?.company_id || 0,
           manager_id: undefined,
@@ -117,6 +121,31 @@ export default function UserManagement() {
     }
   };
 
+  const openEmailDialog = (target: User) => {
+    setEmailTarget(target);
+    setEmailDialogOpen(true);
+  };
+
+  const handleSendEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!emailTarget) return;
+    try {
+      setSendingEmail(true);
+      const resp = await apiService.sendCredentialsEmail(emailTarget.email, emailTarget.full_name, DEFAULT_PASSWORD);
+      if (!resp.success) {
+        throw new Error(resp.error || 'Failed to send email');
+      }
+      setEmailDialogOpen(false);
+      setEmailTarget(null);
+    } catch (err: any) {
+      alert(err.message || 'Failed to send email');
+    } finally {
+      setSendingEmail(false);
+    }
+  };
+
+  const emailTargetName = emailTarget?.full_name || '';
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -126,6 +155,7 @@ export default function UserManagement() {
   }
 
   return (
+    <>
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-neutral-200">User Management</h2>
@@ -166,16 +196,7 @@ export default function UserManagement() {
                   required
                 />
               </div>
-              <div>
-                <Label htmlFor="create-password">Password</Label>
-                <Input
-                  id="create-password"
-                  type="password"
-                  value={createFormData.password}
-                  onChange={(e) => setCreateFormData(prev => ({ ...prev, password: e.target.value }))}
-                  required
-                />
-              </div>
+              {/* Password field removed; defaulting to testpassword */}
               <div>
                 <Label htmlFor="create-role">Role</Label>
                 <Select
@@ -355,6 +376,13 @@ export default function UserManagement() {
                         <>
                           <Button
                             size="sm"
+                            onClick={() => openEmailDialog(user)}
+                            className="bg-blue-700 hover:bg-blue-600"
+                          >
+                            Email
+                          </Button>
+                          <Button
+                            size="sm"
                             variant="outline"
                             onClick={() => setEditingUser(user)}
                             className="border-zinc-600 text-neutral-300 hover:bg-zinc-800"
@@ -386,5 +414,30 @@ export default function UserManagement() {
         </div>
       )}
     </div>
+    {/* Email Dialog */}
+    <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>
+      <DialogContent className="max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Send Credentials {emailTargetName ? `to ${emailTargetName}` : ''}</DialogTitle>
+          <DialogDescription>This will send the default credentials to the user.</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSendEmail} className="space-y-4">
+          <div className="flex gap-2">
+            <Button type="submit" disabled={sendingEmail} className="bg-blue-700 hover:bg-blue-600">
+              {sendingEmail ? 'Sending…' : 'Send Credentials'}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setEmailDialogOpen(false)}
+              className="border-zinc-600 text-neutral-300 hover:bg-zinc-800"
+            >
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

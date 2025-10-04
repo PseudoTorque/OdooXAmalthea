@@ -136,12 +136,16 @@ class ApprovalsService:
 
     def _get_employee_manager(self, employee_id: int) -> Optional[int]:
         user = self.session.query(Users).filter_by(id=employee_id).first()
+        print("user, ", user)
+        print(user.manager_id)
         return int(user.manager_id) if user and user.manager_id else None
     def _policy_approver_list(self, expense: Expenses, policy: ApprovalPolicies) -> List[int]:
         approver_ids: List[int] = []
+        print(expense.employee_id, "expense.employee_id")
         if bool(policy.is_manager_approver):
             override_id = policy.override_manager_id
             manager_id = override_id if override_id else self._get_employee_manager(expense.employee_id)
+            print(manager_id, "manager_id")
             if manager_id:
                 approver_ids.append(int(manager_id))
         # Append static approvers
@@ -155,6 +159,7 @@ class ApprovalsService:
         if not policy:
             return []
         approver_order = self._policy_approver_list(expense, policy)
+        print(approver_order)
         if not approver_order:
             return []
 
@@ -163,8 +168,9 @@ class ApprovalsService:
             .filter_by(expense_id=expense.id)
             .all()
         )
+        print(actions)
         acted_ids = {a.approver_id for a in actions}
-
+        print(acted_ids)
         if bool(policy.is_sequential):
             for user_id in approver_order:
                 if user_id not in acted_ids:
@@ -194,7 +200,9 @@ class ApprovalsService:
             expenses = self.session.query(Expenses).filter_by(status='Submitted').all()
             result = []
             for exp in expenses:
+                print(exp)
                 next_approvers = self._compute_next_approvers(exp)
+                print(next_approvers)
                 if approver_id in next_approvers:
                     result.append({
                         "expense_id": exp.id,
