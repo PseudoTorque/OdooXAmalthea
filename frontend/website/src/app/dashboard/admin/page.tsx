@@ -3,8 +3,10 @@
 import { ProtectedRoute } from '@/lib/auth-context';
 import DashboardLayout from '@/components/DashboardLayout';
 import { IconSettings, IconUsers, IconBuilding, IconChartBar } from '@tabler/icons-react';
+import Link from 'next/link';
 
 export default function AdminDashboard() {
+
   const links = [
     {
       label: "Overview",
@@ -49,9 +51,11 @@ export default function AdminDashboard() {
         <div className="bg-zinc-800 rounded-lg p-6">
           <h2 className="text-xl font-semibold text-neutral-200 mb-4">Quick Actions</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <button className="bg-zinc-700 hover:bg-zinc-600 text-neutral-200 px-4 py-2 rounded-md transition-colors">
-              Add New User
-            </button>
+            <Link href="/dashboard/admin/users">
+              <button className="bg-zinc-700 hover:bg-zinc-600 text-neutral-200 px-4 py-2 rounded-md transition-colors w-full">
+                Manage Users
+              </button>
+            </Link>
             <button className="bg-zinc-700 hover:bg-zinc-600 text-neutral-200 px-4 py-2 rounded-md transition-colors">
               Create Company Policy
             </button>

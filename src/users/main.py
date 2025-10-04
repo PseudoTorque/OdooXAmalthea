@@ -134,6 +134,74 @@ class UsersService:
         finally:
             self.session.close()
 
+    def get_all_users_by_company_id(self, company_id: int, _type: str = "all") -> list[dict]:
+        """
+        Get all users by company ID.
+        """
+        try:
+            users = self.session.query(Users).filter_by(company_id=company_id).all()
+            if _type == "all":
+                users = users
+            elif _type == "admin":
+                users = [user for user in users if user.role == "Admin"]
+            elif _type == "manager":
+                users = [user for user in users if user.role == "Manager"]
+            elif _type == "employee":
+                users = [user for user in users if user.role == "Employee"]
+            else:
+                return {
+                    "success": False,
+                    "error": f"Invalid type: {_type}"
+                }
+
+            return {
+                "success": True,
+                "users": [
+                    {
+                        "id": str(user.id),
+                        "email": user.email,
+                        "full_name": user.full_name,
+                        "role": user.role,
+                        "company_id": user.company_id,
+                        "manager_id": str(user.manager_id) if user.manager_id else None
+                    } for user in users
+                ]
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Failed to get all users by company ID: {str(e)}"
+            }
+        finally:
+            self.session.close()
+    
+    def update_user_with(self, user_id: int, data: dict) -> dict:
+        """
+        Update a user with the given data.
+        """
+        try:
+            user = self.session.query(Users).filter_by(id=user_id).first()
+            if not user:
+                return {
+                    "success": False,
+                    "error": f"User with ID {user_id} not found"
+                }
+            for key, value in data.items():
+                setattr(user, key, value)
+            self.session.commit()
+            return {
+                "success": True,
+                "message": f"User updated successfully",
+                "user": user
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Failed to update user: {str(e)}"
+            }
+        finally:
+            self.session.close()
+
     def create_user(self, email: str, full_name: str, password: str, role: str = "Employee",
                    company_id: int = None, manager_id: str = None) -> dict:
         """
@@ -266,7 +334,6 @@ class UsersService:
         """
         try:
             user = self.session.query(Users).filter_by(email=email).first()
-            print(user, self._verify_password(password, user.password_hash))
             if user and self._verify_password(password, user.password_hash):
                 return {
                     "id": str(user.id),

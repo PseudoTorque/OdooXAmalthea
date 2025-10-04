@@ -89,6 +89,9 @@ interface ApiContextType {
   // User endpoints
   adminSignup: (request: AdminSignupRequest) => Promise<AdminSignupResponse>;
   login: (email: string, password: string) => Promise<LoginResponse>;
+
+  // Generic request method for custom endpoints
+  request: <T>(endpoint: string, options?: RequestInit) => Promise<T>;
 }
 
 // Create context
@@ -111,6 +114,7 @@ export const ApiProvider: React.FC<ApiProviderProps> = ({ children }) => {
     convertCurrency: (baseCurrency: string, targetCurrency: string, amount: number) => api.convertCurrency(baseCurrency, targetCurrency, amount),
     adminSignup: (request: AdminSignupRequest) => api.adminSignup(request),
     login: (email: string, password: string) => api.login(email, password),
+    request: <T>(endpoint: string, options?: RequestInit) => api.request<T>(endpoint, options),
   };
 
   return (

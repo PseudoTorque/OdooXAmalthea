@@ -90,5 +90,31 @@ async def login(request: LoginRequest):
     return users_service.authenticate_user(request.email, request.password)
 
 
+# User management endpoints (Admin only)
+@app.get("/users/company/{company_id}")
+async def get_users_by_company(company_id: int, user_type: str = "all"):
+    """Get all users by company ID."""
+    return users_service.get_all_users_by_company_id(company_id, user_type)
+
+
+@app.post("/users/{user_id}")
+async def update_user(user_id: int, user_data: dict):
+    """Update a user."""
+    return users_service.update_user_with(user_id, user_data)
+
+
+@app.post("/users")
+async def create_user(user_data: dict):
+    """Create a new user."""
+    return users_service.create_user(
+        email=user_data.get("email"),
+        full_name=user_data.get("full_name"),
+        password=user_data.get("password"),
+        role=user_data.get("role", "Employee"),
+        company_id=user_data.get("company_id"),
+        manager_id=user_data.get("manager_id")
+    )
+
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
