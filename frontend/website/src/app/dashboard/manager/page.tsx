@@ -2,29 +2,14 @@
 
 import { ProtectedRoute } from '@/lib/auth-context';
 import DashboardLayout from '@/components/DashboardLayout';
-import { IconClipboardList, IconUsers, IconChartBar, IconSettings } from '@tabler/icons-react';
+import { IconClipboardList } from '@tabler/icons-react';
 
 export default function ManagerDashboard() {
   const links = [
     {
-      label: "My Expenses",
-      href: "/dashboard/manager/expenses",
+      label: "Approvals",
+      href: "/dashboard/manager/approvals",
       icon: <IconClipboardList className="h-5 w-5" />,
-    },
-    {
-      label: "Team Overview",
-      href: "/dashboard/manager/team",
-      icon: <IconUsers className="h-5 w-5" />,
-    },
-    {
-      label: "Reports",
-      href: "/dashboard/manager/reports",
-      icon: <IconChartBar className="h-5 w-5" />,
-    },
-    {
-      label: "Settings",
-      href: "/dashboard/manager/settings",
-      icon: <IconSettings className="h-5 w-5" />,
     },
   ];
 

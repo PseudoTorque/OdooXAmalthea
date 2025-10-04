@@ -20,7 +20,6 @@ export interface Country {
   id: number;
   name_common: string;
   name_official: string;
-  code: string;
   currency_code: string;
   currency_name: string;
   currency_symbol: string;
@@ -90,6 +89,11 @@ interface ApiContextType {
   adminSignup: (request: AdminSignupRequest) => Promise<AdminSignupResponse>;
   login: (email: string, password: string) => Promise<LoginResponse>;
 
+  // Approvals (simplified policies)
+  getApprovalPolicies: (companyId: number) => Promise<import('./api-service').GetPoliciesResponse>;
+  upsertApprovalPolicy: (payload: import('./api-service').ApprovalPolicyDTO) => Promise<import('./api-service').UpsertPolicyResponse>;
+  getApprovalPolicyForUser: (userId: number) => Promise<import('./api-service').GetPolicyByUserResponse>;
+
   // Generic request method for custom endpoints
   request: <T>(endpoint: string, options?: RequestInit) => Promise<T>;
 }
@@ -106,6 +110,10 @@ interface ApiProviderProps {
 export const ApiProvider: React.FC<ApiProviderProps> = ({ children }) => {
   const api = apiService;
 
+  function requestFn<T>(endpoint: string, options?: RequestInit) {
+    return api.request<T>(endpoint, options);
+  }
+
   const contextValue: ApiContextType = {
     checkHealth: () => api.checkHealth(),
     checkDBHealth: () => api.checkDBHealth(),
@@ -114,7 +122,10 @@ export const ApiProvider: React.FC<ApiProviderProps> = ({ children }) => {
     convertCurrency: (baseCurrency: string, targetCurrency: string, amount: number) => api.convertCurrency(baseCurrency, targetCurrency, amount),
     adminSignup: (request: AdminSignupRequest) => api.adminSignup(request),
     login: (email: string, password: string) => api.login(email, password),
-    request: <T>(endpoint: string, options?: RequestInit) => api.request<T>(endpoint, options),
+    getApprovalPolicies: (companyId: number) => api.getApprovalPolicies(companyId),
+    upsertApprovalPolicy: (payload) => api.upsertApprovalPolicy(payload),
+    getApprovalPolicyForUser: (userId: number) => api.getApprovalPolicyForUser(userId),
+    request: requestFn,
   };
 
   return (

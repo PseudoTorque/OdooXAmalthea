@@ -2,11 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
-import { useApi } from '@/lib/api-context';
+import { apiService } from '@/lib/api-service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface User {
   id: string;
@@ -14,7 +15,7 @@ interface User {
   full_name: string;
   role: 'Admin' | 'Manager' | 'Employee';
   company_id: number;
-  manager_id?: string;
+  manager_id?: string | null;
 }
 
 interface CreateUserData {
@@ -23,7 +24,7 @@ interface CreateUserData {
   password: string;
   role: 'Admin' | 'Manager' | 'Employee';
   company_id: number;
-  manager_id?: string;
+  manager_id?: string | null;
 }
 
 export default function UserManagement() {
@@ -34,7 +35,6 @@ export default function UserManagement() {
 
 
   const { user } = useAuth();
-  const api = useApi();
   const [createFormData, setCreateFormData] = useState<CreateUserData>({
     email: '',
     full_name: '',
@@ -59,10 +59,8 @@ export default function UserManagement() {
 
     try {
       setLoading(true);
-      const response = await api.request(`/users/company/${user.company_id}`);
-      if (response.success) {
-        setUsers(response.users);
-      }
+      const response = await apiService.getUsersByCompany(user.company_id);
+      if (response.success && response.users) setUsers(response.users);
     } catch (error) {
       console.error('Error fetching users:', error);
     } finally {
@@ -74,10 +72,7 @@ export default function UserManagement() {
     e.preventDefault();
 
     try {
-      const response = await api.request('/users', {
-        method: 'POST',
-        body: JSON.stringify(createFormData),
-      });
+      const response = await apiService.createUser(createFormData as any);
 
       if (response.success) {
         setShowCreateForm(false);
@@ -99,10 +94,7 @@ export default function UserManagement() {
 
   const handleUpdateUser = async (userId: string, updateData: Partial<User>) => {
     try {
-      const response = await api.request(`/users/${userId}`, {
-        method: 'POST', // Using POST for update as per the endpoint
-        body: JSON.stringify(updateData),
-      });
+      const response = await apiService.updateUser(userId, updateData as any);
 
       if (response.success) {
         fetchUsers(); // Refresh the list
@@ -145,10 +137,13 @@ export default function UserManagement() {
         </Button>
       </div>
 
-      {/* Create User Form */}
-      {showCreateForm && (
-        <div className="bg-black border border-zinc-700 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-neutral-200 mb-4">Create New User</h3>
+      {/* Create User Dialog */}
+      <Dialog open={showCreateForm} onOpenChange={setShowCreateForm}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Create New User</DialogTitle>
+            <DialogDescription>Fill in details to add a user to your company.</DialogDescription>
+          </DialogHeader>
           <form onSubmit={handleCreateUser} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -233,8 +228,8 @@ export default function UserManagement() {
               </Button>
             </div>
           </form>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
 
       {/* Users Table */}
       <div className="bg-zinc-800 rounded-lg overflow-hidden">

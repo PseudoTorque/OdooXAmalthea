@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
-import { useApi } from '@/lib/api-context';
+import { apiService } from '@/lib/api-service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -51,7 +51,6 @@ interface NewExpenseData {
 
 export default function ExpenseManagement() {
   const { user } = useAuth();
-  const api = useApi();
   
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -63,6 +62,7 @@ export default function ExpenseManagement() {
   const [showDetailView, setShowDetailView] = useState(false);
   const [isEditingExpense, setIsEditingExpense] = useState(false);
   const [editExpenseData, setEditExpenseData] = useState<Expense | null>(null);
+  const [isExtracting, setIsExtracting] = useState(false);
   
   // Backend totals
   const [draftTotal, setDraftTotal] = useState(0);
@@ -93,7 +93,7 @@ export default function ExpenseManagement() {
     
     try {
       setLoading(true);
-      const response = await api.request(`/expenses/employee/${user.id}`);
+      const response = await apiService.request(`/expenses/employee/${user.id}`) as any;
       if (response.expense_list) {
         setExpenses(response.expense_list);
         // Update totals from backend
@@ -112,7 +112,7 @@ export default function ExpenseManagement() {
     if (!user?.company_id) return;
     
     try {
-      const response = await api.request(`/users/company/${user.company_id}`);
+      const response = await apiService.request(`/users/company/${user.company_id}`) as any;
       if (response.success && response.users) {
         setUsers(response.users);
       }
@@ -123,7 +123,7 @@ export default function ExpenseManagement() {
 
   const fetchCurrencies = async () => {
     try {
-      const response = await api.request('/currencies');
+      const response = await apiService.request('/currencies') as any;
       if (response.success && response.currencies) {
         setCurrencies(response.currencies);
       }
@@ -134,7 +134,7 @@ export default function ExpenseManagement() {
 
   const fetchCategories = async () => {
     try {
-      const response = await api.request('/expense-categories');
+      const response = await apiService.request('/expense-categories') as any;
       if (response.success && response.categories) {
         setCategories(response.categories);
       }
@@ -171,10 +171,10 @@ export default function ExpenseManagement() {
         status: 'Draft'
       };
 
-      const response = await api.request('/expenses', {
+      const response = await apiService.request('/expenses', {
         method: 'POST',
         body: JSON.stringify(expensePayload),
-      });
+      }) as any;
 
       if (response.success) {
         setShowNewExpenseForm(false);
@@ -212,10 +212,10 @@ export default function ExpenseManagement() {
         remarks: editExpenseData.remarks,
       };
 
-      const response = await api.request(`/expenses/${editExpenseData.id}/update`, {
+      const response = await apiService.request(`/expenses/${editExpenseData.id}/update`, {
         method: 'POST',
         body: JSON.stringify(updatePayload),
-      });
+      }) as any;
 
       if (response.success) {
         fetchExpenses();
@@ -234,10 +234,10 @@ export default function ExpenseManagement() {
 
   const handleUpdateExpenseStatus = async (expenseId: number, newStatus: string) => {
     try {
-      const response = await api.request(`/expenses/${expenseId}/update`, {
+      const response = await apiService.request(`/expenses/${expenseId}/update`, {
         method: 'POST',
         body: JSON.stringify({ status: newStatus }),
-      });
+      }) as any;
 
       if (response.success) {
         fetchExpenses();
@@ -278,6 +278,38 @@ export default function ExpenseManagement() {
         setNewExpenseData(prev => ({ ...prev, receipt_image_base64: base64String }));
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  const handleExtractReceiptData = async () => {
+    if (!newExpenseData.receipt_image_base64) {
+      alert('Please upload a receipt image first');
+      return;
+    }
+
+    setIsExtracting(true);
+    try {
+      const response = await apiService.extractReceiptData(newExpenseData.receipt_image_base64);
+
+      if (response.success && response.data) {
+        // Populate form fields with extracted data
+        setNewExpenseData(prev => ({
+          ...prev,
+          amount: response.data.amount?.toString() || prev.amount,
+          currency_code: response.data.currency_code || prev.currency_code,
+          category: response.data.category || prev.category,
+          expense_date: response.data.expense_date || prev.expense_date,
+          description: response.data.description || prev.description,
+          remarks: response.data.remarks || prev.remarks,
+        }));
+      } else {
+        alert(response.error || 'Failed to extract receipt data');
+      }
+    } catch (error: any) {
+      console.error('Error extracting receipt data:', error);
+      alert('Error extracting receipt data: ' + error.message);
+    } finally {
+      setIsExtracting(false);
     }
   };
 
@@ -347,10 +379,29 @@ export default function ExpenseManagement() {
       <Dialog open={showNewExpenseForm} onOpenChange={setShowNewExpenseForm}>
         <DialogContent className="max-w-4xl">
           <DialogHeader>
-            <DialogTitle>Create New Expense</DialogTitle>
-            <DialogDescription>
-              Fill in the details below to create a new expense claim.
-            </DialogDescription>
+            <div className="flex justify-between items-start">
+              <div>
+                <DialogTitle>Create New Expense</DialogTitle>
+                <DialogDescription>
+                  Fill in the details below to create a new expense claim.
+                </DialogDescription>
+              </div>
+              {newExpenseData.receipt_image_base64 && (
+                <Button
+                  onClick={handleExtractReceiptData}
+                  disabled={isExtracting}
+                  className="bg-purple-700 hover:bg-purple-600 text-white flex items-center gap-2"
+                >
+                  {isExtracting ? (
+                    <>Extracting...</>
+                  ) : (
+                    <>
+                      ✨ Extract using AI
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
           </DialogHeader>
           <form onSubmit={handleCreateExpense} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -655,7 +706,7 @@ export default function ExpenseManagement() {
                   <div>
                     <Label className="text-neutral-400">Amount</Label>
                     <p className="text-neutral-200 mt-1">
-                      {selectedExpense.currency_code} {selectedExpense.amount}
+                    {selectedExpense.amount} {selectedExpense.currency_code}
                     </p>
                   </div>
 
@@ -771,7 +822,7 @@ export default function ExpenseManagement() {
                     {getUserName(expense.paid_by_id)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-200">
-                    {expense.currency_code} {expense.amount}
+                    {expense.amount} {expense.currency_code}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadgeColor(expense.status)}`}>

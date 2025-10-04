@@ -17,7 +17,7 @@ export default function AdminUsersPage() {
 
   return (
     <ProtectedRoute allowedRoles={['Admin']}>
-      <DashboardLayout title="User Management" links={links}>
+      <DashboardLayout title="" links={links}>
         <UserManagement />
       </DashboardLayout>
     </ProtectedRoute>

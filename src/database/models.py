@@ -6,7 +6,7 @@ This module defines the database models using SQLAlchemy.
 
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Date, Numeric, Enum, Boolean
 from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.mysql import LONGTEXT
+# from sqlalchemy.dialects.mysql import LONGTEXT  # Unused
 from datetime import datetime
 from typing import Dict, Any
 
@@ -104,7 +104,7 @@ class Expenses(Base):
     status = Column(Enum('Draft', 'Submitted', 'Approved', 'Rejected', name='expense_status_enum'), default='Draft', nullable=False)
 
     # Receipt
-    receipt_image_base64 = Column(LONGTEXT, nullable=True) # Base64 encoded receipt image
+    receipt_image_base64 = Column(Text, nullable=True) # Base64 encoded receipt image
 
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -119,82 +119,65 @@ class Expenses(Base):
 
 class ApprovalPolicies(Base):
     """
-    ApprovalPolicies model for defining different approval workflows.
+    Simplified approval policy linked directly to a user.
 
-    Defines the different approval workflows a company can create.
+    - One policy per user (enforced at app level)
+    - Optional manager approver toggle
+    - Ordered list of static approvers
+    - Sequential or parallel approvals with minimum approval percentage
     """
     __tablename__ = "approval_policies"
 
     # Primary key
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
-    # Foreign key to company
+    # Linkage
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
 
     # Policy details
     name = Column(String(255), nullable=False)
-    min_amount = Column(Numeric(10, 2), nullable=True)  # Minimum expense amount to trigger policy
-    max_amount = Column(Numeric(10, 2), nullable=True)  # Maximum expense amount to trigger policy
+
+    # Optional override manager (if provided, used instead of dynamic user's manager)
+    override_manager_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    # Settings
+    is_manager_approver = Column(Boolean, default=False, nullable=False)
+    is_sequential = Column(Boolean, default=False, nullable=False)  # approvers sequence
+    min_approval_percentage = Column(Integer, nullable=True)  # 0-100
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     # Relationships
     company = relationship("Company", back_populates="approval_policies")
-    steps = relationship("ApprovalSteps", back_populates="policy", cascade="all, delete-orphan")
-    settings = relationship("ApprovalPolicySettings", back_populates="policy", uselist=False, cascade="all, delete-orphan")
+    approvers = relationship("ApprovalPolicyApprover", back_populates="policy", cascade="all, delete-orphan")
 
     def __repr__(self):
-        return f"<ApprovalPolicies(id='{self.id}', name='{self.name}', company_id={self.company_id})>"
+        return f"<ApprovalPolicies(id='{self.id}', name='{self.name}', user_id={self.user_id})>"
 
 
-class ApprovalSteps(Base):
-    """
-    ApprovalSteps model for defining individual steps within approval policies.
+class ApprovalPolicyApprover(Base):
+    """Ordered list of approvers attached to a simplified policy."""
+    __tablename__ = "approval_policy_approvers"
 
-    Defines each individual step or rule within an ApprovalPolicy.
-    """
-    __tablename__ = "approval_steps"
-
-    # Primary key
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-
-    # Foreign key to policy
     policy_id = Column(Integer, ForeignKey("approval_policies.id"), nullable=False)
+    approver_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    order_index = Column(Integer, nullable=True)
 
-    # Step details
-    step_sequence = Column(Integer, nullable=False)  # Order for sequential approvals
-    rule_type = Column(Enum('Direct', 'Percentage', 'SpecificApprover', name='rule_type_enum'), nullable=False)
-
-    # For Percentage rule type
-    approver_group_id = Column(Integer, nullable=True)  # Links to a group (future enhancement)
-    percentage_required = Column(Integer, nullable=True)  # Percentage required for approval
-
-    # For SpecificApprover rule type
-    specific_approver_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-
-    # Relationships
-    policy = relationship("ApprovalPolicies", back_populates="steps")
-    specific_approver = relationship("Users", foreign_keys=[specific_approver_id])
-    expense_approval_statuses = relationship("ExpenseApprovalStatus", back_populates="step", cascade="all, delete-orphan")
-    approvers = relationship("ApprovalStepApprover", back_populates="step", cascade="all, delete-orphan")
-    settings = relationship("ApprovalStepSettings", back_populates="step", uselist=False, cascade="all, delete-orphan")
-
-    def __repr__(self):
-        return f"<ApprovalSteps(id='{self.id}', rule_type='{self.rule_type}', step_sequence={self.step_sequence})>"
+    policy = relationship("ApprovalPolicies", back_populates="approvers")
+    approver = relationship("Users")
 
 
 class ExpenseApprovalStatus(Base):
-    """
-    ExpenseApprovalStatus model for tracking approval actions.
-
-    A tracking table that records the action of each approver for a specific expense.
-    """
+    """Tracks approval actions per expense under the simplified policy model."""
     __tablename__ = "expense_approval_status"
 
-    # Primary key
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
 
     # Foreign keys
     expense_id = Column(Integer, ForeignKey("expenses.id"), nullable=False)
-    step_id = Column(Integer, ForeignKey("approval_steps.id"), nullable=False)
     approver_id = Column(Integer, ForeignKey("users.id"), nullable=False)
 
     # Approval details
@@ -204,60 +187,13 @@ class ExpenseApprovalStatus(Base):
 
     # Relationships
     expense = relationship("Expenses", back_populates="approval_statuses")
-    step = relationship("ApprovalSteps", back_populates="expense_approval_statuses")
     approver = relationship("Users", foreign_keys=[approver_id])
 
     def __repr__(self):
         return f"<ExpenseApprovalStatus(id='{self.id}', action='{self.action}', approver_id='{self.approver_id}')>"
 
 
-class ApprovalPolicySettings(Base):
-    """
-    Additional settings for an approval policy that are safer to evolve
-    without altering existing columns (SQLite create_all doesn't migrate columns).
-    """
-    __tablename__ = "approval_policy_settings"
-
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    policy_id = Column(Integer, ForeignKey("approval_policies.id"), nullable=False, unique=True)
-
-    # If true, the employee's manager is an implicit first step approver
-    is_manager_approver = Column(Boolean, default=False, nullable=False)
-
-    # Optional default percentage required across steps when not set at step level
-    min_approval_percentage = Column(Integer, nullable=True)
-
-    policy = relationship("ApprovalPolicies", back_populates="settings")
-
-
-class ApprovalStepSettings(Base):
-    """Per-step settings stored in a separate table for evolvability."""
-    __tablename__ = "approval_step_settings"
-
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    step_id = Column(Integer, ForeignKey("approval_steps.id"), nullable=False, unique=True)
-
-    # If true, approvers in this step act one-by-one in order_index
-    is_sequential = Column(Boolean, default=False, nullable=False)
-
-    # If true, this step represents the dynamic manager approval step
-    is_manager_step = Column(Boolean, default=False, nullable=False)
-
-    step = relationship("ApprovalSteps", back_populates="settings")
-
-
-class ApprovalStepApprover(Base):
-    """Mapping of approvers assigned to a given step."""
-    __tablename__ = "approval_step_approvers"
-
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    step_id = Column(Integer, ForeignKey("approval_steps.id"), nullable=False)
-    approver_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    is_required = Column(Boolean, default=False, nullable=False)
-    order_index = Column(Integer, nullable=True)
-
-    step = relationship("ApprovalSteps", back_populates="approvers")
-    approver = relationship("Users")
+## Removed complex step/settings tables in favor of the simplified model above
 
 
 class Country(Base):

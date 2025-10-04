@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from database import get_db, create_tables, get_engine
 from countries_currencies import get_countries_service, get_exchange_rate_service
 from users import get_users_service
-from models import AdminSignupRequest, LoginRequest
+from models import AdminSignupRequest, LoginRequest, ApprovalPolicyUpsertRequest
 from expenses import get_expenses_service
 from approvals.main import get_approvals_service
 from datetime import datetime
@@ -231,8 +231,13 @@ async def get_policies(company_id: int):
 
 
 @app.post("/approvals/policies")
-async def upsert_policy(policy: dict):
-    return approvals_service.create_or_update_policy(policy)
+async def upsert_policy(policy: ApprovalPolicyUpsertRequest):
+    return approvals_service.create_or_update_policy(policy.dict())
+
+
+@app.get("/approvals/policy/user/{user_id}")
+async def get_policy_for_user(user_id: int):
+    return approvals_service.get_policy_by_user(user_id)
 
 
 @app.get("/approvals/pending/{approver_id}")
@@ -243,6 +248,25 @@ async def get_pending_approvals(approver_id: int):
 @app.post("/approvals/{expense_id}/action")
 async def approval_action(expense_id: int, data: dict):
     return approvals_service.take_action(expense_id, int(data.get("approver_id")), data.get("action"), data.get("comments"))
+
+
+# LLM endpoints
+@app.post("/llm/extract-receipt-data")
+async def extract_receipt_data_endpoint(data: dict):
+    """Extract receipt data from base64 image using AI."""
+    from llm.main import extract_receipt_data
+    try:
+        image_data = data.get("image_data")
+        if not image_data:
+            return {"success": False, "error": "No image data provided"}
+
+        result = extract_receipt_data(image_data)
+        if result:
+            return {"success": True, "data": result}
+        else:
+            return {"success": False, "error": "Failed to extract receipt data"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 
 if __name__ == "__main__":
