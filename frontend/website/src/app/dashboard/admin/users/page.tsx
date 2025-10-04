@@ -13,16 +13,6 @@ export default function AdminUsersPage() {
       href: "/dashboard/admin",
       icon: <IconArrowLeft className="h-5 w-5" />,
     },
-    {
-      label: "Company Settings",
-      href: "/dashboard/admin/company",
-      icon: <IconBuilding className="h-5 w-5" />,
-    },
-    {
-      label: "System Settings",
-      href: "/dashboard/admin/settings",
-      icon: <IconSettings className="h-5 w-5" />,
-    },
   ];
 
   return (

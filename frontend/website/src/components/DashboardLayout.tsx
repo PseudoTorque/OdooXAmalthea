@@ -53,7 +53,7 @@ export default function DashboardLayout({ children, title, links }: DashboardLay
         <div className="max-w-6xl mx-auto">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-neutral-200 mb-2">{title}</h1>
-            <p className="text-neutral-300">Welcome back, {user?.full_name}!</p>
+            {title && <p className="text-neutral-300">Welcome back, {user?.full_name}!</p>}
           </div>
           {children}
         </div>

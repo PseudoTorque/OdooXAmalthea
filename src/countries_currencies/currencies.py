@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 from database import get_session
-from database.models import ExchangeRate
+from database.models import ExchangeRate, Company
 
 
 class ExchangeRateService:
@@ -264,6 +264,15 @@ class ExchangeRateService:
             return float(amount) / float(reverse_rate_data['rate'])
 
         return None
+
+    def convert_currency_to_company_currency(self, company_id: int, amount: float, from_currency: str) -> Optional[float]:
+        """
+        Convert an amount from one currency to the company currency.
+        """
+        company = self.session.query(Company).filter_by(id=company_id).first()
+        if not company:
+            return None
+        return self.convert_currency(amount, from_currency, company.currency_code)
 
     def get_supported_currencies(self) -> List[str]:
         """

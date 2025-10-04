@@ -7,7 +7,9 @@ from database import get_db, create_tables, get_engine
 from countries_currencies import get_countries_service, get_exchange_rate_service
 from users import get_users_service
 from models import AdminSignupRequest, LoginRequest
-
+from expenses import get_expenses_service
+from approvals.main import get_approvals_service
+from datetime import datetime
 # Initialize database tables
 create_tables()
 
@@ -20,6 +22,10 @@ exchange_rates_service = get_exchange_rate_service()
 
 # Initialize users service
 users_service = get_users_service()
+
+# Initialize expenses service
+expenses_service = get_expenses_service()
+approvals_service = get_approvals_service()
 
 
 app = FastAPI()
@@ -114,6 +120,129 @@ async def create_user(user_data: dict):
         company_id=user_data.get("company_id"),
         manager_id=user_data.get("manager_id")
     )
+
+
+@app.get("/expenses/employee/{employee_id}")
+async def get_expenses_by_employee(employee_id: int):
+    """Get all expenses by employee ID."""
+    return expenses_service.get_expense_details_for_employee(employee_id)
+
+
+@app.post("/expenses")
+async def create_expense(expense_data: dict):
+    """Create a new expense."""
+    result = expenses_service.add_expense(
+        employee_id=expense_data.get("employee_id"),
+        paid_by_id=expense_data.get("paid_by_id"),
+        amount=expense_data.get("amount"),
+        currency_code=expense_data.get("currency_code"),
+        amount_in_company_currency=exchange_rates_service.convert_currency_to_company_currency(expense_data.get("company_id"),
+                                                                                                    expense_data.get("amount"),
+                                                                                               expense_data.get("currency_code")),
+        category=expense_data.get("category"),
+        description=expense_data.get("description"),
+        expense_date=expense_data.get("expense_date"),
+        remarks=expense_data.get("remarks"),
+        receipt_image_base64=expense_data.get("receipt_image_base64"),
+        status=expense_data.get("status", "Draft")
+    )
+    return {"success": result, "message": "Expense created successfully" if result else "Failed to create expense"}
+
+
+@app.get("/currencies")
+async def get_all_currencies():
+    """Get all available currencies."""
+    from database import get_session, Country
+    session = get_session()
+    try:
+        countries = session.query(Country).filter_by(is_active=True).all()
+        currencies = {}
+        for country in countries:
+            if country.currency_code not in currencies:
+                currencies[country.currency_code] = {
+                    "code": country.currency_code,
+                    "name": country.currency_name,
+                    "symbol": country.currency_symbol
+                }
+        return {"success": True, "currencies": list(currencies.values())}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+    finally:
+        session.close()
+
+
+@app.get("/expense-categories")
+async def get_expense_categories():
+    """Get list of expense categories."""
+    categories = ["Food", "Travel", "Accommodation", "Transport", "Office Supplies", "Software", "Hardware", "Other"]
+    return {"success": True, "categories": categories}
+
+
+@app.post("/expenses/{expense_id}/update")
+async def update_expense(expense_id: int, update_data: dict):
+    """Update an existing expense."""
+    from database import get_session, Expenses
+    session = get_session()
+    try:
+        expense = session.query(Expenses).filter_by(id=expense_id).first()
+        if not expense:
+            return {"success": False, "error": "Expense not found"}
+        
+        # Update allowed fields
+        if "description" in update_data:
+            expense.description = update_data["description"]
+        if "category" in update_data:
+            expense.category = update_data["category"]
+        if "amount" in update_data:
+            expense.amount = update_data["amount"]
+        if "currency_code" in update_data:
+            expense.currency_code = update_data["currency_code"]
+        if "expense_date" in update_data:
+            expense.expense_date = datetime.strptime(update_data["expense_date"], "%Y-%m-%d")
+        if "remarks" in update_data:
+            expense.remarks = update_data["remarks"]
+        if "status" in update_data:
+            expense.status = update_data["status"]
+            # When moving to Submitted via this endpoint, return next approvers as hint
+            if update_data["status"] == "Submitted":
+                session.commit()
+                try:
+                    next_approvers = approvals_service.submit_expense_for_approval(expense_id).get("next_approvers", [])
+                except Exception:
+                    next_approvers = []
+                return {"success": True, "message": "Expense submitted", "next_approvers": next_approvers}
+        if "paid_by_id" in update_data:
+            expense.paid_by_id = update_data["paid_by_id"]
+        
+        session.commit()
+        return {"success": True, "message": "Expense updated successfully"}
+    except Exception as e:
+        session.rollback()
+        return {"success": False, "error": str(e)}
+    finally:
+        session.close()
+
+
+# ---------------- Approvals Endpoints ----------------
+
+@app.get("/approvals/policies/{company_id}")
+async def get_policies(company_id: int):
+    return approvals_service.get_policies_by_company(company_id)
+
+
+@app.post("/approvals/policies")
+async def upsert_policy(policy: dict):
+    return approvals_service.create_or_update_policy(policy)
+
+
+@app.get("/approvals/pending/{approver_id}")
+async def get_pending_approvals(approver_id: int):
+    return approvals_service.get_pending_for_approver(approver_id)
+
+
+@app.post("/approvals/{expense_id}/action")
+async def approval_action(expense_id: int, data: dict):
+    return approvals_service.take_action(expense_id, int(data.get("approver_id")), data.get("action"), data.get("comments"))
 
 
 if __name__ == "__main__":

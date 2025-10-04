@@ -6,6 +6,7 @@ This module defines the database models using SQLAlchemy.
 
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Date, Numeric, Enum, Boolean
 from sqlalchemy.orm import relationship
+from sqlalchemy.dialects.mysql import LONGTEXT
 from datetime import datetime
 from typing import Dict, Any
 
@@ -65,7 +66,7 @@ class Users(Base):
     manager = relationship("Users", back_populates="managed_users", remote_side=[manager_id])
 
     # Relationship with expenses (one-to-many)
-    expenses = relationship("Expenses", back_populates="employee", cascade="all, delete-orphan")
+    expenses = relationship("Expenses", back_populates="employee", foreign_keys="[Expenses.employee_id]", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Users(id='{self.id}', email='{self.email}', full_name='{self.full_name}', role='{self.role}')>"
@@ -84,6 +85,7 @@ class Expenses(Base):
 
     # Foreign key to employee
     employee_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    paid_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
 
     # Expense details
     amount = Column(Numeric(10, 2), nullable=False)  # Original currency amount
@@ -96,18 +98,19 @@ class Expenses(Base):
     category = Column(String(100), nullable=False)  # e.g., 'Travel', 'Food', 'Software'
     description = Column(Text, nullable=False)
     expense_date = Column(Date, nullable=False)
+    remarks = Column(Text, nullable=True)
 
     # Status and workflow
-    status = Column(Enum('Pending', 'Approved', 'Rejected', name='expense_status_enum'), default='Pending', nullable=False)
+    status = Column(Enum('Draft', 'Submitted', 'Approved', 'Rejected', name='expense_status_enum'), default='Draft', nullable=False)
 
     # Receipt
-    receipt_url = Column(String(500), nullable=True)  # URL to receipt image
+    receipt_image_base64 = Column(LONGTEXT, nullable=True) # Base64 encoded receipt image
 
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     # Relationships
-    employee = relationship("Users", back_populates="expenses")
+    employee = relationship("Users", back_populates="expenses", foreign_keys=[employee_id])
     approval_statuses = relationship("ExpenseApprovalStatus", back_populates="expense", cascade="all, delete-orphan")
 
     def __repr__(self):
@@ -136,6 +139,7 @@ class ApprovalPolicies(Base):
     # Relationships
     company = relationship("Company", back_populates="approval_policies")
     steps = relationship("ApprovalSteps", back_populates="policy", cascade="all, delete-orphan")
+    settings = relationship("ApprovalPolicySettings", back_populates="policy", uselist=False, cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<ApprovalPolicies(id='{self.id}', name='{self.name}', company_id={self.company_id})>"
@@ -170,6 +174,8 @@ class ApprovalSteps(Base):
     policy = relationship("ApprovalPolicies", back_populates="steps")
     specific_approver = relationship("Users", foreign_keys=[specific_approver_id])
     expense_approval_statuses = relationship("ExpenseApprovalStatus", back_populates="step", cascade="all, delete-orphan")
+    approvers = relationship("ApprovalStepApprover", back_populates="step", cascade="all, delete-orphan")
+    settings = relationship("ApprovalStepSettings", back_populates="step", uselist=False, cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<ApprovalSteps(id='{self.id}', rule_type='{self.rule_type}', step_sequence={self.step_sequence})>"
@@ -203,6 +209,55 @@ class ExpenseApprovalStatus(Base):
 
     def __repr__(self):
         return f"<ExpenseApprovalStatus(id='{self.id}', action='{self.action}', approver_id='{self.approver_id}')>"
+
+
+class ApprovalPolicySettings(Base):
+    """
+    Additional settings for an approval policy that are safer to evolve
+    without altering existing columns (SQLite create_all doesn't migrate columns).
+    """
+    __tablename__ = "approval_policy_settings"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    policy_id = Column(Integer, ForeignKey("approval_policies.id"), nullable=False, unique=True)
+
+    # If true, the employee's manager is an implicit first step approver
+    is_manager_approver = Column(Boolean, default=False, nullable=False)
+
+    # Optional default percentage required across steps when not set at step level
+    min_approval_percentage = Column(Integer, nullable=True)
+
+    policy = relationship("ApprovalPolicies", back_populates="settings")
+
+
+class ApprovalStepSettings(Base):
+    """Per-step settings stored in a separate table for evolvability."""
+    __tablename__ = "approval_step_settings"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    step_id = Column(Integer, ForeignKey("approval_steps.id"), nullable=False, unique=True)
+
+    # If true, approvers in this step act one-by-one in order_index
+    is_sequential = Column(Boolean, default=False, nullable=False)
+
+    # If true, this step represents the dynamic manager approval step
+    is_manager_step = Column(Boolean, default=False, nullable=False)
+
+    step = relationship("ApprovalSteps", back_populates="settings")
+
+
+class ApprovalStepApprover(Base):
+    """Mapping of approvers assigned to a given step."""
+    __tablename__ = "approval_step_approvers"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    step_id = Column(Integer, ForeignKey("approval_steps.id"), nullable=False)
+    approver_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    is_required = Column(Boolean, default=False, nullable=False)
+    order_index = Column(Integer, nullable=True)
+
+    step = relationship("ApprovalSteps", back_populates="approvers")
+    approver = relationship("Users")
 
 
 class Country(Base):

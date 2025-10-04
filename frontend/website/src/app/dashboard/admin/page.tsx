@@ -2,7 +2,7 @@
 
 import { ProtectedRoute } from '@/lib/auth-context';
 import DashboardLayout from '@/components/DashboardLayout';
-import { IconSettings, IconUsers, IconBuilding, IconChartBar } from '@tabler/icons-react';
+import { IconUsers, IconChartBar, IconClipboardList } from '@tabler/icons-react';
 import Link from 'next/link';
 
 export default function AdminDashboard() {
@@ -19,14 +19,9 @@ export default function AdminDashboard() {
       icon: <IconUsers className="h-5 w-5" />,
     },
     {
-      label: "Company Settings",
-      href: "/dashboard/admin/company",
-      icon: <IconBuilding className="h-5 w-5" />,
-    },
-    {
-      label: "System Settings",
-      href: "/dashboard/admin/settings",
-      icon: <IconSettings className="h-5 w-5" />,
+      label: "Manage Expenses",
+      href: "/dashboard/admin/expenses",
+      icon: <IconClipboardList className="h-5 w-5" />,
     },
   ];
 
@@ -50,21 +45,12 @@ export default function AdminDashboard() {
 
         <div className="bg-zinc-800 rounded-lg p-6">
           <h2 className="text-xl font-semibold text-neutral-200 mb-4">Quick Actions</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Link href="/dashboard/admin/users">
+          <div className="grid grid-cols-1 gap-4">
+            <Link href="/dashboard/admin/expenses">
               <button className="bg-zinc-700 hover:bg-zinc-600 text-neutral-200 px-4 py-2 rounded-md transition-colors w-full">
-                Manage Users
+                Manage Expenses
               </button>
             </Link>
-            <button className="bg-zinc-700 hover:bg-zinc-600 text-neutral-200 px-4 py-2 rounded-md transition-colors">
-              Create Company Policy
-            </button>
-            <button className="bg-zinc-700 hover:bg-zinc-600 text-neutral-200 px-4 py-2 rounded-md transition-colors">
-              View Reports
-            </button>
-            <button className="bg-zinc-700 hover:bg-zinc-600 text-neutral-200 px-4 py-2 rounded-md transition-colors">
-              System Settings
-            </button>
           </div>
         </div>
       </DashboardLayout>

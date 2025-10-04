@@ -83,21 +83,20 @@ class UsersService:
                 currency_code=country.currency_code  # Use country's currency as company currency
             )
 
-            # Create admin user
+            # Add company to session and flush to get its ID
+            self.session.add(company)
+            self.session.commit()
+
+            existing_company = self.session.query(Company).filter_by(name=request.company_name).first()
+
+            # Create admin user with the company ID
             admin_user = Users(
-                company_id=company.id,  # Will be set after company is added to session
+                company_id=existing_company.id,
                 email=request.email,
                 password_hash=self._hash_password(request.password),
                 full_name=request.full_name,
                 role="Admin"
             )
-
-            # Add company first to get its ID
-            self.session.add(company)
-            self.session.flush()  # Get the company ID without committing
-
-            # Set the company_id for the user
-            admin_user.company_id = company.id
 
             # Add admin user
             self.session.add(admin_user)
@@ -109,10 +108,10 @@ class UsersService:
                 "success": True,
                 "message": "Admin user and company created successfully",
                 "company": {
-                    "id": company.id,
-                    "name": company.name,
-                    "country_id": company.country_id,
-                    "currency_code": company.currency_code
+                    "id": existing_company.id,
+                    "name": existing_company.name,
+                    "country_id": existing_company.country_id,
+                    "currency_code": existing_company.currency_code
                 },
                 "user": {
                     "id": str(admin_user.id),

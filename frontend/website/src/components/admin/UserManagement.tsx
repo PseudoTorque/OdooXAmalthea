@@ -31,16 +31,23 @@ export default function UserManagement() {
   const [loading, setLoading] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+
+
+  const { user } = useAuth();
+  const api = useApi();
   const [createFormData, setCreateFormData] = useState<CreateUserData>({
     email: '',
     full_name: '',
     password: '',
     role: 'Employee',
-    company_id: 0,
+    company_id: user?.company_id || 0,
+    manager_id: null,
   });
 
-  const { user } = useAuth();
-  const api = useApi();
+  // Get available managers (users with Manager role)
+  const getAvailableManagers = () => {
+    return users.filter(user => user.role === 'Manager');
+  };
 
   // Fetch users when component mounts
   useEffect(() => {
@@ -80,6 +87,7 @@ export default function UserManagement() {
           password: '',
           role: 'Employee',
           company_id: user?.company_id || 0,
+          manager_id: undefined,
         });
         fetchUsers(); // Refresh the list
       }
@@ -189,6 +197,27 @@ export default function UserManagement() {
                   </SelectContent>
                 </Select>
               </div>
+              {createFormData.role === 'Employee' && (
+                <div>
+                  <Label htmlFor="create-manager">Manager (Optional)</Label>
+                  <Select
+                    value={createFormData.manager_id || ''}
+                    onValueChange={(value) => setCreateFormData(prev => ({ ...prev, manager_id: value === "No Manager" ? null : value || null }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a manager" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="No Manager">No Manager</SelectItem>
+                      {getAvailableManagers().map((manager) => (
+                        <SelectItem key={manager.id} value={manager.id}>
+                          {manager.full_name} ({manager.email})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
             <div className="flex gap-2">
               <Button type="submit" className="bg-zinc-700 hover:bg-zinc-600">
@@ -223,12 +252,15 @@ export default function UserManagement() {
                   Role
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-neutral-300 uppercase tracking-wider">
+                  Manager
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-neutral-300 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-600">
-              {users.map((user) => (
+              {users.filter(user => user.role !== 'Admin').map((user) => (
                 <tr key={user.id} className="hover:bg-zinc-700">
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-200">
                     {editingUser?.id === user.id ? (
@@ -267,6 +299,41 @@ export default function UserManagement() {
                       }`}>
                         {user.role}
                       </span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-200">
+                    {editingUser?.id === user.id ? (
+                      editingUser.role === 'Employee' ? (
+                        <Select
+                          value={editingUser.manager_id || ''}
+                          onValueChange={(value) => setEditingUser(prev => prev ? { ...prev, manager_id: value === "No Manager" ? null : value || null } : null)}
+                        >
+                          <SelectTrigger className="bg-zinc-600 border-zinc-500">
+                            <SelectValue placeholder="Select a manager" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="No Manager">No Manager</SelectItem>
+                            {getAvailableManagers().map((manager) => (
+                              <SelectItem key={manager.id} value={manager.id}>
+                                {manager.full_name} ({manager.email})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <span className="text-neutral-400">N/A</span>
+                      )
+                    ) : (
+                      user.role === 'Employee' ? (
+                        user.manager_id ?
+                          (() => {
+                            const manager = users.find(m => m.id === user.manager_id);
+                            return manager ? `${manager.full_name} (${manager.email})` : 'Unknown Manager';
+                          })()
+                          : 'No Manager'
+                      ) : (
+                        <span className="text-neutral-400">N/A</span>
+                      )
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -318,7 +385,7 @@ export default function UserManagement() {
         </div>
       </div>
 
-      {users.length === 0 && !loading && (
+      {users.filter(user => user.role !== 'Admin').length === 0 && !loading && (
         <div className="text-center py-8 text-neutral-400">
           No users found in your company.
         </div>
